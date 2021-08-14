@@ -1,0 +1,161 @@
+local entity_list, client = g_EntityList, g_EngineClient
+
+local reasons = {
+	[0] = "Hit",
+	[1] = "Resolver",
+	[2] = "Spread",
+	[3] = "Occlusion",
+	[4] = "Prediction error"
+}
+local types = {
+	"Console",
+	"Notification",
+	"Event",
+	"Colored radio"
+}
+
+local id_funcs = {
+	[0] = function(reason, text) print(text) end,
+	[1] = function(reason, text) cheat.AddNotify(reason, text) end,
+	[2] = function(reason, text) cheat.AddEvent(text) end,
+	[3] = function(reason, text) client:ExecuteClientCmd("playerchatwheel . \"" .. text .. "\"") end,
+}
+
+local elements = {}
+
+for k,v in pairs(reasons) do
+	local console, notify, event, radio
+	local enabled = menu.Switch(v, "Show more", false, "Just a switch to show all the options. Am i drunk? Yes")
+	local menu_types = menu.MultiCombo(v, "Categories", types, 0)
+	if k ~= 0 then
+		console = menu.TextBox(v, "Console message", 256, "Missed at {name}'s {hitbox}. Reason: {reason}. HC: {hitchance}, BT: {backtrack}")
+		notify = menu.TextBox(v, "Notification message", 256, "Missed at {name}'s {hitbox}{nskip}Reason: {reason}{nskip}HC: {hitchance}, BT: {backtrack}")
+		event = menu.TextBox(v, "Event message", 256, "Missed at {name}'s {hitbox}{skip}Reason: {reason}{skip}HC: {hitchance}, BT: {backtrack}")
+		radio = menu.TextBox(v, "Radio message", 256, "{skip}{grey}game{green}sense {white}Missed at {lred}{name}{white}'s {lblue}{hitbox}{skip}{white}Reason: {red}{reason}{skip}{white}HC: {hitchance}, BT: {backtrack}")
+	else
+		console = menu.TextBox(v, "Console message", 256, "Hit {name}'s {hitbox} for {damage}. HC: {hitchance}, BT: {backtrack}")
+		notify = menu.TextBox(v, "Notification message", 256, "Hit {name}'s {hitbox} for {damage}{nskip}HC: {hitchance}, BT: {backtrack}")
+		event = menu.TextBox(v, "Event message", 256, "Hit {name}'s {hitbox} for {damage}. HC: {hitchance}, BT: {backtrack}")
+		radio = menu.TextBox(v, "Radio message", 256, "{skip}{grey}game{green}sense {white}Hit {name} for {damage}")
+	end
+	elements[k] = {
+		types = menu_types,
+		[0] = console,
+		[1] = notify,
+		[2] = event,
+		[3] = radio,
+	}
+	local function callback()
+		if not enabled:GetBool() then
+			menu_types:SetVisible(false)
+			console:SetVisible(false)
+			notify:SetVisible(false)
+			radio:SetVisible(false)
+		else
+			menu_types:SetVisible(true)
+			console:SetVisible(menu_types:GetBool(0))
+			notify:SetVisible(menu_types:GetBool(1))
+			event:SetVisible(menu_types:GetBool(2))
+			radio:SetVisible(menu_types:GetBool(3))
+		end
+	end
+	callback()
+	enabled:RegisterCallback(callback)
+	menu_types:RegisterCallback(callback)
+end
+
+local hitgroups = {
+	[0] = "head",
+    [1] = "neck",
+    [2] = "pelvis",
+    [3] = "stomach",
+    [4] = "lower chest",
+    [5] = "chest",
+    [6] = "upper chest",
+    [7] = "right thigh",
+    [8] = "left thigh",
+    [9] = "right calf",
+    [10] = "left calf",
+    [11] = "right foot",
+    [12] = "left foot",
+    [13] = "right hand",
+    [14] = "left hand",
+    [15] = "right upper arm",
+    [16] = "right forearm",
+    [17] = "left upper arm",
+    [18] = "left forear"
+}
+
+local cols = {
+	["{white}"] = "\x01",
+	["{dred}"] = "\x02",
+	["{lpurple}"] = "\x03",
+	["{green}"] = "\x04",
+	["{lime}"] = "\x05",
+	["{lgreen}"] = "\x06",
+	["{red}"] = "\x07",
+	["{grey}"] = "\x08",
+	["{lolive}"] = "\x09",
+	["{olive}"] = "\x10",
+	["{lblue}"] = "\x0B",
+	["{blue}"] = "\x0C",
+	["{grey2}"] = "\x0D",
+	["{purple}"] = "\x0E",
+	["{lred}"] = "\x0F",
+
+	["{nskip}"] = "\n",
+
+	["{skip}"] = "\xe2\x80\xa9" -- thanks @ryano
+}
+
+local function convert_text(text, name, reason, hitbox, damage, hitchance, backtrack)
+	text = text:gsub("\"", ""):gsub(";", "")
+	for name, col in pairs(cols) do
+		text = text:gsub(name, col)
+	end
+
+	text = text:gsub("{name}", name)
+	text = text:gsub("{reason}", reason)
+	text = text:gsub("{hitbox}", hitbox)
+	text = text:gsub("{damage}", damage)
+	text = text:gsub("{hitchance}", hitchance)
+	text = text:gsub("{backtrack}", backtrack)
+
+	return text
+end
+
+cheat.RegisterCallback("registered_shot", function(shot)
+	local target = entity_list:GetClientEntity(shot.target_index)
+	if not target then return end
+
+	local id = shot.reason
+	local reason = reasons[id]
+
+	target = target:GetPlayer()
+	local name = target:GetName()
+	local hitbox = hitgroups[shot.hitgroup or 0] or "unknown"
+	local damage = tostring(shot.damage or 0)
+	local hitchance = tostring(shot.hitchance or 0)
+	local backtrack = tostring(shot.backtrack or 0)
+
+	local menu = elements[id]
+	local menu_types = menu.types
+	
+	for i = 0, #types - 1 do
+		if menu_types:GetBool(i) then
+			local func = id_funcs[i]
+			local text = menu[i]:GetString()
+			text = convert_text(text, name, reason, hitbox, damage, hitchance, backtrack)
+			func(reason, text)
+		end
+	end
+end)
+	menu.Text("Misc", "Powered By")	
+				local c_menu_power = menu.Switch("Misc", "Custom Kill Say", false,'Yeah')
+				
+				if (c_menu_power:GetBool()) then
+					g_EngineClient:ExecuteClientCmd(string.format("playerchatwheel . \x08Powered"  ))
+					g_EngineClient:ExecuteClientCmd(string.format("playerchatwheel . \x08by"   ))
+					g_EngineClient:ExecuteClientCmd(string.format("playerchatwheel . \x06gamesense"   ))
+    end
+		
